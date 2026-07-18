@@ -22,6 +22,8 @@ import { validateIdea } from './services/validateIdea.js';
 import { priceEstimator } from './services/priceEstimator.js';
 import { lintListing } from './services/lintListing.js';
 import { bootstrapTrust } from './services/bootstrapTrust.js';
+import { apiLint, apiValidate, apiPrice, apiTrust } from './services/adapters.js';
+import { markdownToListing } from './parser/markdownToListing.js';
 import { startScraperCron, scrapeOnce } from './scraper/run.js';
 import { supabase } from './db/supabase.js';
 
@@ -175,27 +177,16 @@ app.get('/', async (_req, reply) => {
   </div>
 
   <div class="demo">
-    <h3>Quick test (no payment, requires X_BYPASS_PAYMENT=1 on server)</h3>
-    <pre>curl -X POST https://foundry-asp.onrender.com/v1/lint-listing \\
-  -H "Content-Type: application/json" \\
+    <h3>Try the linter (free, no payment)</h3>
+    <pre>curl -X POST https://foundry-asp.onrender.com/api/lint \
+  -H "Content-Type: application/json" \
   -d '{
-    "listing": {
-      "name": "MyAgent",
-      "description": "An AI agent that does something useful for builders.",
-      "category": "SOFTWARE_SERVICES",
-      "services": [{
-        "name": "Service One",
-        "description": "① Does the thing.\\n② User must provide: 1. input",
-        "type": "A2MCP",
-        "fee": "0.01",
-        "endpoint": "https://api.example.com/v1"
-      }]
-    }
+    "draft": "# MyAgent\n\nAn AI agent that does something useful.\n\n## Service One\nDoes the thing.\n\n## Service Two\nDoes the other thing."
   }'</pre>
   </div>
 
   <footer>
-    <a href="/health">/health</a> · <a href="https://web3.okx.com/xlayer/build-x-series">OKX.AI Genesis Hackathon</a> · x402 · chain 196
+    <a href="/health">/health</a> · <a href="/logo.png">logo</a> · <a href="https://web3.okx.com/xlayer/build-x-series">OKX.AI Genesis Hackathon</a> · x402 · chain 196
   </footer>
 </div>
 </body>
@@ -251,6 +242,44 @@ app.post('/v1/bootstrap-trust', {
 }, async (req) => {
   const { endpoint, service_name, caller_wallet } = req.body || {};
   return await bootstrapTrust({ endpoint, service_name, caller_wallet });
+});
+
+// ─── Frontend adapter routes (/api/*) — match the Google AI Studio contract ─
+//
+// The React frontend (App.tsx) calls /api/lint (free) and /api/service/{validate,price,trust}
+// (paid). These adapters accept the frontend's {draft: string} shape and return
+// the JSON shapes the UI already expects. The paid 3 also respect x402.
+
+app.post('/api/lint', async (req) => {
+  const { draft } = req.body || {};
+  return await apiLint({ draft });
+});
+
+app.post('/api/service/validate', {
+  preHandler: x402Gate({ amount: 0.005, description: 'Foundry: validate-idea' }),
+}, async (req) => {
+  const { draft } = req.body || {};
+  return await apiValidate({ draft });
+});
+
+app.post('/api/service/price', {
+  preHandler: x402Gate({ amount: 0.005, description: 'Foundry: price-estimator' }),
+}, async (req) => {
+  const { draft } = req.body || {};
+  return await apiPrice({ draft });
+});
+
+app.post('/api/service/trust', {
+  preHandler: x402Gate({ amount: 0.001, description: 'Foundry: bootstrap-trust' }),
+}, async (req) => {
+  const { draft } = req.body || {};
+  return await apiTrust({ draft });
+});
+
+// Tiny helper for the frontend to preview a parsed listing (debug aid)
+app.post('/api/_parse', async (req) => {
+  const { draft } = req.body || {};
+  return markdownToListing(draft);
 });
 
 // ─── Start ─────────────────────────────────────────────────────────────

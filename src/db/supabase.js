@@ -23,7 +23,22 @@ function makeQueryChain() {
       return Promise.resolve({ data: [], count: 0, error: null }).then(resolve);
     },
   };
-  return chainable;
+  // Make every property access return a thenable that resolves to { data, error }
+  return new Proxy(chainable, {
+    get(target, prop) {
+      if (prop in target) return target[prop];
+      // Any unknown property (like 'insert' chained then 'select' chained then 'single')
+      // returns a thenable that resolves to empty
+      return function () {
+        return new Proxy(function () {}, {
+          get(_, p) {
+            if (p === 'then') return (resolve) => Promise.resolve({ data: [], count: 0, error: null }).then(resolve);
+            return undefined;
+          },
+        });
+      };
+    },
+  });
 }
 
 function makeStub() {

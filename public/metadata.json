@@ -1,0 +1,6 @@
+{
+  "name": "Foundry",
+  "description": "A draft listing linter and optimizer. Ship listings that get approved, priced right, and trusted instantly.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
