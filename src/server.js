@@ -34,6 +34,12 @@ import {
   registerWebhook, listWebhooks, fireWebhooks,
   extendedHealthCheck, hashDraft,
 } from './services/extraFeatures.js';
+import {
+  jobListDraft, jobAudit, jobMarketplaceWatch, listWatches,
+  jobPortfolioReview, jobOnboard,
+  createSubscription, listSubscriptions, cancelSubscription,
+  jobSLA, jobPortfolio,
+} from './services/jobs.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 let _logoCache = null;
@@ -99,6 +105,16 @@ app.get('/health', async () => {
       'schema': 'free',
       'sandbox': 'free',
       'preview': 'free (20/h)',
+      'webhooks': 'free',
+      // HIREABLE JOBS (Task Marketplace)
+      'jobs.list-draft': '0.1 USDT',
+      'jobs.audit': '0.01 USDT',
+      'jobs.marketplace-watch': '0.02 USDT',
+      'jobs.portfolio-review': '0.05 USDT',
+      'jobs.onboard': '0.05 USDT',
+      'jobs.sla': '0.1 USDT',
+      'jobs.portfolio': '0.005 USDT',
+      'jobs.subscribe': 'free',
     },
   };
 });
@@ -493,8 +509,82 @@ app.get('/v1/schema', async () => {
       'compare': '0.05 USDT (2-5 listings)',
       'apply-rewrites': '0.05 USDT',
       'health-check': '0.005 USDT',
+      'jobs.list-draft': '0.1 USDT (one-shot launch pipeline)',
+      'jobs.audit': '0.01 USDT (recurring score check)',
+      'jobs.marketplace-watch': '0.02 USDT (per 10 competitors)',
+      'jobs.portfolio-review': '0.05 USDT (up to 20 listings)',
+      'jobs.onboard': '0.05 USDT (first-time ASP launch guide)',
+      'jobs.sla': '0.1 USDT (guaranteed turnaround)',
+      'jobs.portfolio': '0.005 USDT (trust score for an agent_id)',
     },
   };
+});
+
+// ─── JOBS: hireable agent services (Task Marketplace) ───────────────────
+// Other agents hire Foundry for ongoing / multi-step work via these.
+// Each is a multi-stage pipeline designed to be paid as a single Task
+// in the OKX.AI Task Marketplace.
+
+app.post('/v1/jobs/list-draft', {
+  preHandler: x402Gate({ amount: 0.1, description: 'Foundry: list-draft (one-shot launch pipeline)' }),
+}, async (req) => {
+  const { draft, signing_wallet } = req.body || {};
+  return await jobListDraft({ draft, signing_wallet });
+});
+
+app.post('/v1/jobs/audit', {
+  preHandler: x402Gate({ amount: 0.01, description: 'Foundry: audit (recurring score check)' }),
+}, async (req) => {
+  const { agent_id, draft, listing } = req.body || {};
+  return await jobAudit({ agent_id, draft, listing });
+});
+
+app.post('/v1/jobs/marketplace-watch', {
+  preHandler: x402Gate({ amount: 0.02, description: 'Foundry: marketplace-watch (up to 20 competitors)' }),
+}, async (req) => {
+  const { owner_id, agent_ids } = req.body || {};
+  return await jobMarketplaceWatch({ owner_id, agent_ids });
+});
+
+app.get('/v1/jobs/marketplace-watch', async () => ({ watches: listWatches() }));
+
+app.post('/v1/jobs/portfolio-review', {
+  preHandler: x402Gate({ amount: 0.05, description: 'Foundry: portfolio-review (up to 20 listings)' }),
+}, async (req) => {
+  const { listings, agent_ids } = req.body || {};
+  return await jobPortfolioReview({ listings, agent_ids });
+});
+
+app.post('/v1/jobs/onboard', {
+  preHandler: x402Gate({ amount: 0.05, description: 'Foundry: onboard (first-time ASP guide)' }),
+}, async (req) => {
+  const { draft } = req.body || {};
+  return await jobOnboard({ draft });
+});
+
+app.post('/v1/jobs/sla', {
+  preHandler: x402Gate({ amount: 0.1, description: 'Foundry: SLA (guaranteed turnaround)' }),
+}, async (req) => {
+  const { draft, max_ms } = req.body || {};
+  return await jobSLA({ draft, max_ms });
+});
+
+app.post('/v1/jobs/portfolio', {
+  preHandler: x402Gate({ amount: 0.005, description: 'Foundry: portfolio (trust score for an agent)' }),
+}, async (req) => {
+  const { agent_id } = req.body || {};
+  return await jobPortfolio({ agent_id });
+});
+
+// Subscription management (free, schedules the recurring jobs above)
+app.post('/v1/jobs/subscribe', async (req) => {
+  const { owner_id, plan, callback_url, draft } = req.body || {};
+  return createSubscription({ owner_id, plan, callback_url, draft });
+});
+
+app.get('/v1/jobs/subscribe', async () => ({ subscriptions: listSubscriptions() }));
+app.delete('/v1/jobs/subscribe/:id', async (req) => {
+  return cancelSubscription(req.params.id);
 });
 
 // ─── Start ─────────────────────────────────────────────────────────────
