@@ -13,6 +13,9 @@
 
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { config } from './config.js';
 import { x402Gate } from './x402/middleware.js';
 import { validateIdea } from './services/validateIdea.js';
@@ -21,6 +24,18 @@ import { lintListing } from './services/lintListing.js';
 import { bootstrapTrust } from './services/bootstrapTrust.js';
 import { startScraperCron, scrapeOnce } from './scraper/run.js';
 import { supabase } from './db/supabase.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+let _logoCache = null;
+async function getLogo() {
+  if (_logoCache) return _logoCache;
+  try {
+    _logoCache = await readFile(join(__dirname, '..', 'assets', 'logo.png'));
+    return _logoCache;
+  } catch {
+    return null;
+  }
+}
 
 const app = Fastify({
   logger: { level: process.env.LOG_LEVEL || 'info' },
@@ -62,6 +77,129 @@ app.get('/health', async () => {
       'bootstrap-trust': '0.001 USDT',
     },
   };
+});
+
+// ─── Logo (free — public asset) ────────────────────────────────────────
+app.get('/logo.png', async (_req, reply) => {
+  const buf = await getLogo();
+  if (!buf) return reply.code(404).send({ error: 'logo_missing' });
+  reply.type('image/png').send(buf);
+});
+
+// ─── OG image (X / Telegram link previews) ──────────────────────────────
+app.get('/og.png', async (_req, reply) => {
+  const buf = await getLogo();
+  if (!buf) return reply.code(404).send({ error: 'logo_missing' });
+  reply.type('image/png').send(buf);
+});
+
+// ─── Landing page (minimal, free) ──────────────────────────────────────
+app.get('/', async (_req, reply) => {
+  reply.type('text/html; charset=utf-8').send(`<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Foundry — Pre-flight to post-flight for OKX.AI ASPs</title>
+<meta name="description" content="Validate ideas, price services, lint listings, and bootstrap trust for Agent Service Providers on X Layer."/>
+<meta property="og:title" content="Foundry — Ship a listing that gets approved, priced right, and trusted."/>
+<meta property="og:description" content="4 services in 1 ASP. x402. Self-lints at 100/100."/>
+<meta property="og:image" content="${config.publicUrl}/og.png"/>
+<link rel="icon" type="image/png" href="${config.publicUrl}/logo.png"/>
+<style>
+  :root { --bg:#0a0a0a; --card:#141414; --border:#1f1f1f; --text:#fff; --muted:#9ca3af; --accent:#00d4aa; --warn:#ff8a3d; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 32px 20px 80px; }
+  header { display: flex; align-items: center; gap: 14px; margin-bottom: 36px; }
+  header img { width: 48px; height: 48px; border-radius: 8px; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  .hero { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 28px; margin-bottom: 24px; }
+  .hero h2 { margin: 0 0 6px; font-size: 28px; letter-spacing: -0.03em; }
+  .hero p { color: var(--muted); margin: 0; font-size: 16px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
+  .svc { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; }
+  .svc h3 { margin: 0 0 4px; font-size: 15px; }
+  .svc .fee { color: var(--accent); font-family: ui-monospace, monospace; font-size: 13px; margin-bottom: 8px; }
+  .svc p { margin: 0; color: var(--muted); font-size: 13px; }
+  .svc code { background: #0a0a0a; padding: 1px 5px; border-radius: 3px; color: var(--accent); font-size: 12px; }
+  .demo { background: var(--card); border: 1px solid var(--accent); border-radius: 10px; padding: 20px; }
+  .demo h3 { margin: 0 0 8px; font-size: 16px; color: var(--accent); }
+  .demo pre { background: #0a0a0a; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-size: 12px; overflow-x: auto; color: #e5e5e5; }
+  footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 28px; }
+  footer a { color: var(--accent); text-decoration: none; }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="/logo.png" alt="Foundry"/>
+    <div>
+      <h1>Foundry</h1>
+      <div class="sub">Pre-flight to post-flight for OKX.AI Agent Service Providers</div>
+    </div>
+  </header>
+
+  <div class="hero">
+    <h2>Ship a listing that gets approved, priced right, and trusted — in one call.</h2>
+    <p>4 services in 1 ASP, paid via x402 on X Layer. Self-lints at 100/100.</p>
+  </div>
+
+  <div class="grid">
+    <div class="svc">
+      <h3>Validate Idea</h3>
+      <div class="fee">0.005 USDT</div>
+      <p>Demand score, competition map, build / maybe / kill verdict.</p>
+      <p><code>POST /v1/validate-idea</code></p>
+    </div>
+    <div class="svc">
+      <h3>Price Estimator</h3>
+      <div class="fee">0.005 USDT</div>
+      <p>Real p25 / median / p75 + recommended fee from 447 live listings.</p>
+      <p><code>POST /v1/price-estimator</code></p>
+    </div>
+    <div class="svc">
+      <h3>Lint Listing</h3>
+      <div class="fee">0.05 USDT</div>
+      <p>0–100 score, OKX review rules, LLM rewrites for the failing fields.</p>
+      <p><code>POST /v1/lint-listing</code></p>
+    </div>
+    <div class="svc">
+      <h3>Bootstrap Trust</h3>
+      <div class="fee">0.001 USDT</div>
+      <p>EIP-191 signed on-chain receipt + "Foundry Verified" badge for your X post.</p>
+      <p><code>POST /v1/bootstrap-trust</code></p>
+    </div>
+  </div>
+
+  <div class="demo">
+    <h3>Quick test (no payment, requires X_BYPASS_PAYMENT=1 on server)</h3>
+    <pre>curl -X POST https://foundry-asp.onrender.com/v1/lint-listing \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "listing": {
+      "name": "MyAgent",
+      "description": "An AI agent that does something useful for builders.",
+      "category": "SOFTWARE_SERVICES",
+      "services": [{
+        "name": "Service One",
+        "description": "① Does the thing.\\n② User must provide: 1. input",
+        "type": "A2MCP",
+        "fee": "0.01",
+        "endpoint": "https://api.example.com/v1"
+      }]
+    }
+  }'</pre>
+  </div>
+
+  <footer>
+    <a href="/health">/health</a> · <a href="https://web3.okx.com/xlayer/build-x-series">OKX.AI Genesis Hackathon</a> · x402 · chain 196
+  </footer>
+</div>
+</body>
+</html>`);
 });
 
 // ─── Foundry Verified badge (static SVG, free) ─────────────────────────
