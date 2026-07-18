@@ -1,0 +1,34 @@
+{
+  "name": "Foundry ASP",
+  "description": "Pre-flight to post-flight for OKX.AI Agent Service Providers. Validates ideas, prices services, lints listings, and bootstraps trust.",
+  "services": [
+    {
+      "name": "Validate Idea",
+      "description": "① Checks if your ASP idea is worth building by scoring demand, mapping competitors, and giving a build/maybe/kill verdict.\n② User must provide: 1. idea (short text describing your service) 2. optional category (FINANCE, SOFTWARE_SERVICES, LIFESTYLE, ART_CREATION, EDUCATION, PRODUCTIVITY, SOCIAL).",
+      "type": "A2MCP",
+      "fee": "0.005",
+      "endpoint": "https://foundry-asp.onrender.com/v1/validate-idea"
+    },
+    {
+      "name": "Price Estimator",
+      "description": "① Returns real marketplace pricing distribution (p25/median/p75) for a category, plus a recommended fee based on complexity and expected volume.\n② User must provide: 1. optional category 2. optional idea (for LLM complexity judgment) 3. optional expected_volume_per_day (number).",
+      "type": "A2MCP",
+      "fee": "0.005",
+      "endpoint": "https://foundry-asp.onrender.com/v1/price-estimator"
+    },
+    {
+      "name": "Lint Listing",
+      "description": "① Scores your draft listing 0-100 against OKX review rules learned from accepted listings, flags rejection reasons, and rewrites the name and descriptions in place.\n② User must provide: 1. listing object with name, description, category, services array (each with name, description, type, fee, optional endpoint). Optional: rewrite (default true).",
+      "type": "A2MCP",
+      "fee": "0.05",
+      "endpoint": "https://foundry-asp.onrender.com/v1/lint-listing"
+    },
+    {
+      "name": "Bootstrap Trust",
+      "description": "① Calls your live endpoint, measures latency, checks JSON schema, and signs a Foundry Verified receipt on X Layer you can embed in your X post and listing.\n② User must provide: 1. endpoint (https URL of your ASP) 2. optional service_name 3. optional caller_wallet.",
+      "type": "A2MCP",
+      "fee": "0.001",
+      "endpoint": "https://foundry-asp.onrender.com/v1/bootstrap-trust"
+    }
+  ]
+}

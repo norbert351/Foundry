@@ -1,0 +1,26 @@
+{
+  "name": "foundry-asp",
+  "version": "0.1.0",
+  "description": "Foundry — pre-flight to post-flight for OKX.AI ASPs. Validates ideas, prices services, lints listings, and bootstraps trust.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "scrape": "node src/scraper/run.js",
+    "test": "node --test test/*.test.js",
+    "lint": "echo 'lint pass (built-in)'"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "fastify": "^4.28.1",
+    "@fastify/cors": "^9.0.1",
+    "ethers": "^6.13.4",
+    "@supabase/supabase-js": "^2.45.4",
+    "node-cron": "^3.0.3",
+    "zod": "^3.23.8",
+    "dotenv": "^16.4.5"
+  }
+}

@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: foundry-asp
+    runtime: node
+    plan: starter
+    buildCommand: pnpm install --prod=false
+    startCommand: node src/server.js
+    envVars:
+      - key: NODE_VERSION
+        value: '20'
+      - key: PORT
+        value: '8080'
+      - key: PUBLIC_URL
+        value: https://foundry-asp.onrender.com
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: FOUNDRY_WALLET_PK
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: X_BYPASS_PAYMENT
+        value: '0'
+      - key: LOG_LEVEL
+        value: info
+    healthCheckPath: /health
+    autoDeploy: true
