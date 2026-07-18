@@ -26,6 +26,14 @@ import { apiLint, apiValidate, apiPrice, apiTrust } from './services/adapters.js
 import { markdownToListing } from './parser/markdownToListing.js';
 import { startScraperCron, scrapeOnce } from './scraper/run.js';
 import { supabase } from './db/supabase.js';
+import { RULES, RULE_CATEGORIES, RULE_BY_ID } from './services/rules.js';
+import { getLlmStats } from './llm/client.js';
+import {
+  batchLint, compareListings, applyRewrites, leaderboard,
+  previewStore, previewGet, sandboxSubmit,
+  registerWebhook, listWebhooks, fireWebhooks,
+  extendedHealthCheck, hashDraft,
+} from './services/extraFeatures.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 let _logoCache = null;
@@ -72,11 +80,25 @@ app.get('/health', async () => {
     last_scrape: lastScrape,
     marketplace_size: listingCount,
     bypass_payment: config.bypassPayment,
+    llm: {
+      anthropic: !!config.llm.apiKey,
+      hermes: !!process.env.HERMES_LLM_URL,
+      stats: getLlmStats(),
+    },
     endpoints: {
       'validate-idea': '0.005 USDT',
       'price-estimator': '0.005 USDT',
       'lint-listing': '0.05 USDT',
       'bootstrap-trust': '0.001 USDT',
+      'batch-lint': '0.1 USDT',
+      'compare': '0.05 USDT',
+      'apply-rewrites': '0.05 USDT',
+      'health-check': '0.005 USDT',
+      'leaderboard': 'free',
+      'rules': 'free',
+      'schema': 'free',
+      'sandbox': 'free',
+      'preview': 'free (20/h)',
     },
   };
 });
@@ -173,6 +195,54 @@ app.get('/', async (_req, reply) => {
       <div class="fee">0.001 USDT</div>
       <p>EIP-191 signed on-chain receipt + "Foundry Verified" badge for your X post.</p>
       <p><code>POST /v1/bootstrap-trust</code></p>
+    </div>
+    <div class="svc">
+      <h3>Batch Lint</h3>
+      <div class="fee">0.1 USDT</div>
+      <p>Lint up to 20 listings in one call. Get a ranked leaderboard.</p>
+      <p><code>POST /v1/batch-lint</code></p>
+    </div>
+    <div class="svc">
+      <h3>Compare</h3>
+      <div class="fee">0.05 USDT</div>
+      <p>Side-by-side comparison of 2-5 listings. Differentiation report.</p>
+      <p><code>POST /v1/compare</code></p>
+    </div>
+    <div class="svc">
+      <h3>Apply Rewrites</h3>
+      <div class="fee">0.05 USDT</div>
+      <p>Auto-apply LLM rewrites to your listing and re-lint to confirm the fix.</p>
+      <p><code>POST /v1/apply-rewrites</code></p>
+    </div>
+    <div class="svc">
+      <h3>Health Check</h3>
+      <div class="fee">0.005 USDT</div>
+      <p>Deep health check: p50/p99 latency, success rate, schema validation across N samples.</p>
+      <p><code>POST /v1/health-check</code></p>
+    </div>
+    <div class="svc" style="border-color: #00d4aa;">
+      <h3>Leaderboard</h3>
+      <div class="fee" style="color: #00d4aa;">FREE</div>
+      <p>Top-scoring live listings on the marketplace right now.</p>
+      <p><code>GET /v1/leaderboard</code></p>
+    </div>
+    <div class="svc" style="border-color: #00d4aa;">
+      <h3>Rules</h3>
+      <div class="fee" style="color: #00d4aa;">FREE</div>
+      <p>The complete 19-rule book Foundry uses to score listings.</p>
+      <p><code>GET /v1/rules</code></p>
+    </div>
+    <div class="svc" style="border-color: #00d4aa;">
+      <h3>Sandbox</h3>
+      <div class="fee" style="color: #00d4aa;">FREE</div>
+      <p>Submit a draft, get a fake agent_id + score. Iterate before listing.</p>
+      <p><code>POST /v1/sandbox</code></p>
+    </div>
+    <div class="svc" style="border-color: #00d4aa;">
+      <h3>Preview</h3>
+      <div class="fee" style="color: #00d4aa;">FREE</div>
+      <p>Generate a public URL showing your draft's lint score. 20/h per IP.</p>
+      <p><code>POST /v1/preview</code></p>
     </div>
   </div>
 
@@ -280,6 +350,151 @@ app.post('/api/service/trust', {
 app.post('/api/_parse', async (req) => {
   const { draft } = req.body || {};
   return markdownToListing(draft);
+});
+
+// ─── EXTRA: Rule transparency (free) ───────────────────────────────────
+app.get('/v1/rules', async () => {
+  return {
+    count: RULES.length,
+    categories: RULE_CATEGORIES,
+    rules: RULES,
+  };
+});
+
+app.get('/v1/rules/:id', async (req, reply) => {
+  const rule = RULE_BY_ID[req.params.id];
+  if (!rule) return reply.code(404).send({ error: 'rule_not_found' });
+  return rule;
+});
+
+// ─── EXTRA: Batch lint (paid, bulk) ───────────────────────────────────
+app.post('/v1/batch-lint', {
+  preHandler: x402Gate({ amount: 0.1, description: 'Foundry: batch-lint (20 listings)' }),
+}, async (req) => {
+  const { listings, sortBy } = req.body || {};
+  return await batchLint({ listings, sortBy });
+});
+
+// ─── EXTRA: Compare listings (paid) ────────────────────────────────────
+app.post('/v1/compare', {
+  preHandler: x402Gate({ amount: 0.05, description: 'Foundry: compare (2-5 listings)' }),
+}, async (req) => {
+  const { listings, criterion } = req.body || {};
+  return await compareListings({ listings, criterion });
+});
+
+// ─── EXTRA: Apply rewrites (paid) ─────────────────────────────────────
+app.post('/v1/apply-rewrites', {
+  preHandler: x402Gate({ amount: 0.05, description: 'Foundry: apply-rewrites' }),
+}, async (req) => {
+  const { listing, auto_apply } = req.body || {};
+  return await applyRewrites({ listing, auto_apply: !!auto_apply });
+});
+
+// ─── EXTRA: Leaderboard (free) ────────────────────────────────────────
+app.get('/v1/leaderboard', async (req) => {
+  const limit = Math.min(parseInt(req.query.limit || '10', 10), 50);
+  const min_score = parseInt(req.query.min_score || '60', 10);
+  return await leaderboard({ limit, min_score });
+});
+
+// ─── EXTRA: Public preview (free, 20 calls/IP/hour) ───────────────────
+const previewHits = new Map();
+app.post('/v1/preview', async (req) => {
+  const ip = req.ip || 'unknown';
+  const h = previewHits.get(ip) || { count: 0, resetAt: Date.now() + 3600_000 };
+  if (Date.now() > h.resetAt) { h.count = 0; h.resetAt = Date.now() + 3600_000; }
+  if (h.count >= 20) return { error: 'rate_limited', message: '20 previews per hour. Use /v1/lint-listing for unlimited.', resetAt: h.resetAt };
+  h.count++;
+  previewHits.set(ip, h);
+
+  const { draft, secret } = req.body || {};
+  if (!draft) return { error: 'draft_required' };
+  if (!secret) return { error: 'secret_required', message: 'Pick a secret string to control who can view this preview' };
+  const { listing } = markdownToListing(draft);
+  const result = await lintListing({ listing, rewrite: false });
+  const id = previewStore(draft, secret);
+  return {
+    preview_id: id,
+    public_url: `${config.publicUrl}/v1/preview/${id}`,
+    score: result.score,
+    pass: result.pass,
+    findings: result.findings.length,
+    block_count: result.summary.block_count,
+  };
+});
+
+app.get('/v1/preview/:id', async (req) => {
+  const entry = previewGet(req.params.id);
+  if (!entry) return { error: 'preview_not_found_or_expired' };
+  const { listing } = markdownToListing(entry.draft);
+  const result = await lintListing({ listing, rewrite: false });
+  return {
+    score: result.score,
+    pass: result.pass,
+    findings: result.findings,
+    summary: result.summary,
+    draft_preview: entry.draft.slice(0, 500),
+  };
+});
+
+// ─── EXTRA: Sandbox (free, returns fake agent_id + score) ──────────────
+app.post('/v1/sandbox', async (req) => {
+  const { draft } = req.body || {};
+  return await sandboxSubmit({ draft });
+});
+
+// ─── EXTRA: Webhook registry (free) ────────────────────────────────────
+app.post('/v1/webhooks', async (req) => {
+  const { url, draft, event } = req.body || {};
+  if (!url || !draft) return { error: 'url_and_draft_required' };
+  return registerWebhook({ url, draft_hash: hashDraft(draft), event });
+});
+
+app.get('/v1/webhooks', async () => ({ webhooks: listWebhooks() }));
+
+// ─── EXTRA: Extended health check (paid) ───────────────────────────────
+app.post('/v1/health-check', {
+  preHandler: x402Gate({ amount: 0.005, description: 'Foundry: extended health check' }),
+}, async (req) => {
+  const { endpoint, samples } = req.body || {};
+  return await extendedHealthCheck({ endpoint, samples });
+});
+
+// ─── EXTRA: Listing schema (free) ─────────────────────────────────────
+// OpenAPI-style schema of the listing structure Foundry validates against.
+app.get('/v1/schema', async () => {
+  return {
+    listing: {
+      required: ['name', 'description', 'category', 'services'],
+      fields: {
+        name: { type: 'string', min: 3, max: 25, rule: 'NAME_LENGTH' },
+        description: { type: 'string', min: 30, max: 500, rule: 'DESC_LENGTH' },
+        category: { type: 'enum', values: RULE_CATEGORIES.concat(['FINANCE', 'LIFESTYLE', 'ART_CREATION', 'EDUCATION', 'PRODUCTIVITY', 'SOCIAL']).filter((v, i, a) => a.indexOf(v) === i), rule: 'CATEGORY_INVALID' },
+        services: { type: 'array', min: 1, rule: 'SVC_NAME_LENGTH' },
+      },
+      service: {
+        required: ['name', 'description', 'type', 'fee'],
+        fields: {
+          name: { type: 'string', min: 5, max: 30, rule: 'SVC_NAME_LENGTH' },
+          description: { type: 'string', min: 50, max: 400, rule: 'SVC_DESC_TWO_PART' },
+          type: { type: 'enum', values: ['A2MCP', 'A2A'], rule: 'SVC_TYPE_INVALID' },
+          fee: { type: 'string', pattern: '^[0-9]+(\\.[0-9]{1,6})?$', rule: 'SVC_FEE_HAS_SYMBOL' },
+          endpoint: { type: 'string', pattern: '^https://', rule: 'SVC_ENDPOINT_NOT_HTTPS' },
+        },
+      },
+    },
+    fee_schedule: {
+      'validate-idea': '0.005 USDT',
+      'price-estimator': '0.005 USDT',
+      'lint-listing': '0.05 USDT',
+      'bootstrap-trust': '0.001 USDT',
+      'batch-lint': '0.1 USDT (up to 20 listings)',
+      'compare': '0.05 USDT (2-5 listings)',
+      'apply-rewrites': '0.05 USDT',
+      'health-check': '0.005 USDT',
+    },
+  };
 });
 
 // ─── Start ─────────────────────────────────────────────────────────────
