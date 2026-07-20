@@ -28,6 +28,9 @@ import { startScraperCron, scrapeOnce } from './scraper/run.js';
 import { supabase } from './db/supabase.js';
 import { RULES, RULE_CATEGORIES, RULE_BY_ID } from './services/rules.js';
 import { getLlmStats } from './llm/client.js';
+import { instantShip } from './services/instantShip.js';
+import { getScoreboard, checkAgent } from './services/scoreboard.js';
+import { getCompetitors } from './services/competitors.js';
 import {
   batchLint, compareListings, applyRewrites, leaderboard,
   previewStore, previewGet, sandboxSubmit,
@@ -253,6 +256,10 @@ app.get('/health', async () => {
       'jobs.sla': '0.1 USDT',
       'jobs.portfolio': '0.005 USDT',
       'jobs.subscribe': 'free',
+      // FREE CORE FEATURES (no x402)
+      'instant-ship': 'FREE (one-click listing generator)',
+      'verified': 'FREE (public trust scoreboard)',
+      'competitors': 'FREE (market competitor radar)',
     },
   };
 });
@@ -743,6 +750,29 @@ app.post('/v1/jobs/subscribe', async (req) => {
 app.get('/v1/jobs/subscribe', async () => ({ subscriptions: listSubscriptions() }));
 app.delete('/v1/jobs/subscribe/:id', async (req) => {
   return cancelSubscription(req.params.id);
+});
+
+// ─── INSTANT SHIP (FREE) — one draft → ready listing + CLI command ────
+app.post('/v1/instant-ship', async (req) => {
+  const { draft, language, endpoint, fee } = req.body || {};
+  return await instantShip({ draft, language, endpoint, fee });
+});
+
+// ─── PUBLIC SCOREBOARD (FREE) — Foundry Verified leaderboard ──────────
+app.get('/v1/verified', async (req) => {
+  const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
+  const min_score = parseInt(req.query.min_score || '50', 10);
+  return await getScoreboard({ limit, min_score });
+});
+
+app.get('/v1/verified/:agentId', async (req) => {
+  return await checkAgent({ agentId: req.params.agentId });
+});
+
+// ─── COMPETITOR RADAR (FREE) — category competition analysis ─────────
+app.get('/v1/competitors', async (req) => {
+  const { category, limit, sortBy } = req.query || {};
+  return await getCompetitors({ category, limit: parseInt(limit || '20', 10), sortBy });
 });
 
 // ─── A2A worker health (even when worker runs out-of-process) ───────────
