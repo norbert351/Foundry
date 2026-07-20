@@ -15,6 +15,10 @@ import { lintListing } from './lintListing.js';
 import { bootstrapTrust } from './bootstrapTrust.js';
 import { callLLM } from '../llm/client.js';
 import { RULES } from './rules.js';
+import { validatePublicUrl } from './validateUrl.js';
+import { FileStore, initStore } from './stateStore.js';
+
+initStore().catch(e => console.warn('[extraFeatures] initStore failed:', e.message));
 
 // ─── /v1/batch-lint ────────────────────────────────────────────────────
 export async function batchLint({ listings, sortBy = 'score' } = {}) {
@@ -176,20 +180,15 @@ export async function leaderboard({ limit = 10, min_score = 70 } = {}) {
 // Public preview of a listing's score without paying. Owner submits a
 // draft + a secret, gets back a /v1/preview/:hash URL others can hit
 // anonymously to see the score.
-const PREVIEW_STORE = new Map();
-export function previewStore(draft, secret) {
+export const previewStore_instance = new FileStore('previews', { ttlMs: 7 * 24 * 60 * 60 * 1000 });
+export async function previewStore(draft, secret) {
   const id = createHash('sha256').update(draft + secret).digest('hex').slice(0, 16);
-  PREVIEW_STORE.set(id, { draft, created_at: Date.now() });
+  await previewStore_instance.set(id, { draft, created_at: Date.now() });
   return id;
 }
-export function previewGet(id) {
-  const entry = PREVIEW_STORE.get(id);
+export async function previewGet(id) {
+  const entry = await previewStore_instance.get(id);
   if (!entry) return null;
-  // 7-day expiry
-  if (Date.now() - entry.created_at > 7 * 24 * 60 * 60 * 1000) {
-    PREVIEW_STORE.delete(id);
-    return null;
-  }
   return entry;
 }
 
@@ -218,18 +217,21 @@ export async function sandboxSubmit({ draft }) {
 // In-memory webhook registry. When you call this with a webhook URL +
 // your draft, we'll POST to that URL with the lint result whenever you
 // re-submit. Useful for builder automation pipelines.
-const WEBHOOKS = new Map();
-export function registerWebhook({ url, draft_hash, event = 'lint.completed' }) {
+export const webhookStore = new FileStore('webhooks');
+export async function registerWebhook({ url, draft_hash, event = 'lint.completed' }) {
+  validatePublicUrl(url);
   const id = 'wh_' + randomUUID().slice(0, 8);
-  WEBHOOKS.set(id, { url, draft_hash, event, created_at: Date.now() });
+  await webhookStore.set(id, { url, draft_hash, event, created_at: Date.now() });
   return { webhook_id: id, url, event, draft_hash };
 }
-export function listWebhooks() {
-  return Array.from(WEBHOOKS.entries()).map(([id, w]) => ({ id, ...w }));
+export async function listWebhooks() {
+  const all = await webhookStore.all();
+  return all.map((w) => ({ id: w.id, url: w.url, draft_hash: w.draft_hash, event: w.event, created_at: w.created_at }));
 }
 export async function fireWebhooks(draft_hash, payload) {
   const fired = [];
-  for (const [id, w] of WEBHOOKS.entries()) {
+  const all = await webhookStore.all();
+  for (const w of all) {
     if (w.draft_hash === draft_hash || w.event === 'lint.completed') {
       try {
         const r = await fetch(w.url, {
@@ -238,9 +240,9 @@ export async function fireWebhooks(draft_hash, payload) {
           body: JSON.stringify(payload),
           signal: AbortSignal.timeout(5000),
         });
-        fired.push({ id, url: w.url, status: r.status, ok: r.ok });
+        fired.push({ id: w.id, url: w.url, status: r.status, ok: r.ok });
       } catch (e) {
-        fired.push({ id, url: w.url, ok: false, error: e.message.slice(0, 80) });
+        fired.push({ id: w.id, url: w.url, ok: false, error: e.message.slice(0, 80) });
       }
     }
   }
@@ -253,6 +255,7 @@ export async function fireWebhooks(draft_hash, payload) {
 export async function extendedHealthCheck({ endpoint, samples = 3 } = {}) {
   if (!endpoint) throw new Error('endpoint required');
   if (samples < 1 || samples > 10) throw new Error('samples must be 1–10');
+  validatePublicUrl(endpoint);
 
   const calls = [];
   for (let i = 0; i < samples; i++) {

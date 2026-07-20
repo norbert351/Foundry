@@ -1,18 +1,12 @@
 // src/config.js — env loader
 import 'dotenv/config';
 
-const required = (key) => {
-  const v = process.env[key];
-  if (!v) throw new Error(`Missing required env: ${key}`);
-  return v;
-};
-
 export const config = {
   port: parseInt(process.env.PORT || '8080', 10),
   publicUrl: process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 8080}`,
   supabase: {
-    url: required('SUPABASE_URL'),
-    key: required('SUPABASE_KEY'),
+    url: process.env.SUPABASE_URL || '',
+    key: process.env.SUPABASE_KEY || '',
   },
   xlayer: {
     rpc: process.env.X_LAYER_RPC || 'https://rpc.xlayer.tech',

@@ -16,6 +16,7 @@
 import { ethers } from 'ethers';
 import { supabase } from '../db/supabase.js';
 import { config } from '../config.js';
+import { validatePublicUrl } from './validateUrl.js';
 
 const SELLER_ABI = ['function balanceOf(address) view returns (uint256)'];
 const MAX_RESPONSE_BYTES = 100_000;
@@ -44,11 +45,28 @@ function validateShape(body) {
 }
 
 export async function bootstrapTrust({ endpoint, service_name, caller_wallet }) {
+  // SSRF guard first
+  try { validatePublicUrl(endpoint); } catch (e) {
+    return { error: 'invalid_endpoint', message: e.message, foundry_verdict: 'INVALID_ENDPOINT' };
+  }
+
   if (!endpoint || !isValidUrl(endpoint)) {
     throw new Error('endpoint must be a valid URL');
   }
   if (!/^https:\/\//.test(endpoint)) {
     throw new Error('endpoint must be https://');
+  }
+  validatePublicUrl(endpoint);
+
+  // Fail early if wallet PK is missing (before making the expensive fetch call)
+  if (!config.xlayer.foundryWalletPk) {
+    return {
+      error: 'wallet_not_configured',
+      message: 'FOUNDRY_WALLET_PK not set — cannot sign receipts',
+      endpoint,
+      service_name: service_name || null,
+      foundry_verdict: 'UNCONFIGURED — set FOUNDRY_WALLET_PK in env to enable trust badges',
+    };
   }
 
   const t0 = Date.now();

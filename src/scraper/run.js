@@ -3,13 +3,21 @@ import cron from 'node-cron';
 import { scrapeAll, persistSnapshot } from './okx.js';
 import { config } from '../config.js';
 
+let _scraping = false;
+
 export async function scrapeOnce() {
+  if (_scraping) { console.log('[scraper] skip — already running'); return; }
+  _scraping = true;
   const t0 = Date.now();
-  const agents = await scrapeAll();
-  const { inserted, latest } = await persistSnapshot(agents);
-  const ms = Date.now() - t0;
-  console.log(`[scraper] done in ${ms}ms — ${agents.length} agents, ${inserted} snapshots, ${latest} latest`);
-  return { agents, inserted, latest, ms };
+  try {
+    const agents = await scrapeAll();
+    const { inserted, latest } = await persistSnapshot(agents);
+    const ms = Date.now() - t0;
+    console.log(`[scraper] done in ${ms}ms — ${agents.length} agents, ${inserted} snapshots, ${latest} latest`);
+    return { agents, inserted, latest, ms };
+  } finally {
+    _scraping = false;
+  }
 }
 
 export function startScraperCron() {

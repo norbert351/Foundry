@@ -41,6 +41,122 @@ import {
   jobSLA, jobPortfolio,
 } from './services/jobs.js';
 import { createWorker } from './a2a/worker.js';
+import { z } from 'zod';
+
+// ─── Zod input validation schemas ──────────────────────────────────────
+const listingObjectSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  category: z.string(),
+  services: z.array(z.any()),
+}).strict();
+
+const validateIdeaSchema = z.object({
+  idea: z.string().min(5),
+  category: z.string().optional(),
+}).strict();
+
+const priceEstimatorSchema = z.object({
+  category: z.string().optional(),
+  idea: z.string().optional(),
+  expected_volume_per_day: z.number().optional(),
+}).strict();
+
+const lintListingSchema = z.object({
+  listing: listingObjectSchema,
+  rewrite: z.boolean().optional(),
+}).strict();
+
+const bootstrapTrustSchema = z.object({
+  endpoint: z.string().url().startsWith('https://'),
+  service_name: z.string().optional(),
+  caller_wallet: z.string().optional(),
+}).strict();
+
+const batchLintSchema = z.object({
+  listings: z.array(z.any()).min(1).max(20),
+  sortBy: z.string().optional(),
+}).strict();
+
+const compareSchema = z.object({
+  listings: z.array(z.any()).min(2).max(5),
+  criterion: z.string().optional(),
+}).strict();
+
+const applyRewritesSchema = z.object({
+  listing: listingObjectSchema,
+  auto_apply: z.boolean().optional(),
+}).strict();
+
+const previewSchema = z.object({
+  draft: z.string(),
+  secret: z.string(),
+}).strict();
+
+const sandboxSchema = z.object({
+  draft: z.string(),
+}).strict();
+
+const webhooksSchema = z.object({
+  url: z.string().url().startsWith('https://'),
+  draft: z.string(),
+  event: z.string().optional(),
+}).strict();
+
+const healthCheckSchema = z.object({
+  endpoint: z.string().url().startsWith('https://').optional(),
+  samples: z.number().int().min(1).max(10).optional(),
+}).strict();
+
+const apiLintSchema = z.object({
+  draft: z.string(),
+}).strict();
+
+const apiServiceSchema = z.object({
+  draft: z.string(),
+}).strict();
+
+const jobListDraftSchema = z.object({
+  draft: z.string().optional(),
+  signing_wallet: z.string().optional(),
+}).strict();
+
+const jobAuditSchema = z.object({
+  agent_id: z.string().optional(),
+  draft: z.string().optional(),
+  listing: z.any().optional(),
+}).strict();
+
+const jobMarketplaceWatchSchema = z.object({
+  owner_id: z.string().optional(),
+  agent_ids: z.array(z.any()).optional(),
+}).strict();
+
+const jobPortfolioReviewSchema = z.object({
+  listings: z.array(z.any()).optional(),
+  agent_ids: z.array(z.any()).optional(),
+}).strict();
+
+const jobOnboardSchema = z.object({
+  draft: z.string().optional(),
+}).strict();
+
+const jobSLASchema = z.object({
+  draft: z.string().optional(),
+  max_ms: z.number().optional(),
+}).strict();
+
+const jobPortfolioSchema = z.object({
+  agent_id: z.string().optional(),
+}).strict();
+
+const jobSubscribeSchema = z.object({
+  owner_id: z.string().optional(),
+  plan: z.string().optional(),
+  callback_url: z.string().optional(),
+  draft: z.string().optional(),
+}).strict();
+// ──────────────────────────────────────────────────────────────────────
 
 // Optional in-process A2A worker (set FOUNDRY_A2A_EMBEDDED=1). Prefer the
 // dedicated `pnpm worker` / Render background worker for production.
@@ -325,6 +441,7 @@ app.post('/v1/validate-idea', {
   preHandler: x402Gate({ amount: 0.005, description: 'Foundry: validate-idea' }),
 }, async (req) => {
   const { idea, category } = req.body || {};
+  validateIdeaSchema.parse(req.body);
   return await validateIdea({ idea, category });
 });
 
@@ -333,6 +450,7 @@ app.post('/v1/price-estimator', {
   preHandler: x402Gate({ amount: 0.005, description: 'Foundry: price-estimator' }),
 }, async (req) => {
   const { category, idea, expected_volume_per_day } = req.body || {};
+  priceEstimatorSchema.parse(req.body);
   return await priceEstimator({ category, idea, expected_volume_per_day });
 });
 
@@ -341,6 +459,7 @@ app.post('/v1/lint-listing', {
   preHandler: x402Gate({ amount: 0.05, description: 'Foundry: lint-listing' }),
 }, async (req) => {
   const { listing, rewrite } = req.body || {};
+  lintListingSchema.parse(req.body);
   return await lintListing({ listing, rewrite: rewrite !== false });
 });
 
@@ -349,6 +468,7 @@ app.post('/v1/bootstrap-trust', {
   preHandler: x402Gate({ amount: 0.001, description: 'Foundry: bootstrap-trust' }),
 }, async (req) => {
   const { endpoint, service_name, caller_wallet } = req.body || {};
+  bootstrapTrustSchema.parse(req.body);
   return await bootstrapTrust({ endpoint, service_name, caller_wallet });
 });
 
@@ -360,6 +480,7 @@ app.post('/v1/bootstrap-trust', {
 
 app.post('/api/lint', async (req) => {
   const { draft } = req.body || {};
+  apiLintSchema.parse(req.body);
   return await apiLint({ draft });
 });
 
@@ -367,6 +488,7 @@ app.post('/api/service/validate', {
   preHandler: x402Gate({ amount: 0.005, description: 'Foundry: validate-idea' }),
 }, async (req) => {
   const { draft } = req.body || {};
+  apiServiceSchema.parse(req.body);
   return await apiValidate({ draft });
 });
 
@@ -374,6 +496,7 @@ app.post('/api/service/price', {
   preHandler: x402Gate({ amount: 0.005, description: 'Foundry: price-estimator' }),
 }, async (req) => {
   const { draft } = req.body || {};
+  apiServiceSchema.parse(req.body);
   return await apiPrice({ draft });
 });
 
@@ -381,14 +504,12 @@ app.post('/api/service/trust', {
   preHandler: x402Gate({ amount: 0.001, description: 'Foundry: bootstrap-trust' }),
 }, async (req) => {
   const { draft } = req.body || {};
+  apiServiceSchema.parse(req.body);
   return await apiTrust({ draft });
 });
 
 // Tiny helper for the frontend to preview a parsed listing (debug aid)
-app.post('/api/_parse', async (req) => {
-  const { draft } = req.body || {};
-  return markdownToListing(draft);
-});
+// (disabled in production — use /v1/lint-listing instead)
 
 // ─── EXTRA: Rule transparency (free) ───────────────────────────────────
 app.get('/v1/rules', async () => {
@@ -410,6 +531,7 @@ app.post('/v1/batch-lint', {
   preHandler: x402Gate({ amount: 0.1, description: 'Foundry: batch-lint (20 listings)' }),
 }, async (req) => {
   const { listings, sortBy } = req.body || {};
+  batchLintSchema.parse(req.body);
   return await batchLint({ listings, sortBy });
 });
 
@@ -418,6 +540,7 @@ app.post('/v1/compare', {
   preHandler: x402Gate({ amount: 0.05, description: 'Foundry: compare (2-5 listings)' }),
 }, async (req) => {
   const { listings, criterion } = req.body || {};
+  compareSchema.parse(req.body);
   return await compareListings({ listings, criterion });
 });
 
@@ -426,6 +549,7 @@ app.post('/v1/apply-rewrites', {
   preHandler: x402Gate({ amount: 0.05, description: 'Foundry: apply-rewrites' }),
 }, async (req) => {
   const { listing, auto_apply } = req.body || {};
+  applyRewritesSchema.parse(req.body);
   return await applyRewrites({ listing, auto_apply: !!auto_apply });
 });
 
@@ -447,6 +571,7 @@ app.post('/v1/preview', async (req) => {
   previewHits.set(ip, h);
 
   const { draft, secret } = req.body || {};
+  previewSchema.parse(req.body);
   if (!draft) return { error: 'draft_required' };
   if (!secret) return { error: 'secret_required', message: 'Pick a secret string to control who can view this preview' };
   const { listing } = markdownToListing(draft);
@@ -479,12 +604,14 @@ app.get('/v1/preview/:id', async (req) => {
 // ─── EXTRA: Sandbox (free, returns fake agent_id + score) ──────────────
 app.post('/v1/sandbox', async (req) => {
   const { draft } = req.body || {};
+  sandboxSchema.parse(req.body);
   return await sandboxSubmit({ draft });
 });
 
 // ─── EXTRA: Webhook registry (free) ────────────────────────────────────
 app.post('/v1/webhooks', async (req) => {
   const { url, draft, event } = req.body || {};
+  webhooksSchema.parse(req.body);
   if (!url || !draft) return { error: 'url_and_draft_required' };
   return registerWebhook({ url, draft_hash: hashDraft(draft), event });
 });
@@ -496,6 +623,7 @@ app.post('/v1/health-check', {
   preHandler: x402Gate({ amount: 0.005, description: 'Foundry: extended health check' }),
 }, async (req) => {
   const { endpoint, samples } = req.body || {};
+  healthCheckSchema.parse(req.body);
   return await extendedHealthCheck({ endpoint, samples });
 });
 
@@ -551,6 +679,7 @@ app.post('/v1/jobs/list-draft', {
   preHandler: x402Gate({ amount: 0.1, description: 'Foundry: list-draft (one-shot launch pipeline)' }),
 }, async (req) => {
   const { draft, signing_wallet } = req.body || {};
+  jobListDraftSchema.parse(req.body);
   return await jobListDraft({ draft, signing_wallet });
 });
 
@@ -558,6 +687,7 @@ app.post('/v1/jobs/audit', {
   preHandler: x402Gate({ amount: 0.01, description: 'Foundry: audit (recurring score check)' }),
 }, async (req) => {
   const { agent_id, draft, listing } = req.body || {};
+  jobAuditSchema.parse(req.body);
   return await jobAudit({ agent_id, draft, listing });
 });
 
@@ -565,6 +695,7 @@ app.post('/v1/jobs/marketplace-watch', {
   preHandler: x402Gate({ amount: 0.02, description: 'Foundry: marketplace-watch (up to 20 competitors)' }),
 }, async (req) => {
   const { owner_id, agent_ids } = req.body || {};
+  jobMarketplaceWatchSchema.parse(req.body);
   return await jobMarketplaceWatch({ owner_id, agent_ids });
 });
 
@@ -574,6 +705,7 @@ app.post('/v1/jobs/portfolio-review', {
   preHandler: x402Gate({ amount: 0.05, description: 'Foundry: portfolio-review (up to 20 listings)' }),
 }, async (req) => {
   const { listings, agent_ids } = req.body || {};
+  jobPortfolioReviewSchema.parse(req.body);
   return await jobPortfolioReview({ listings, agent_ids });
 });
 
@@ -581,6 +713,7 @@ app.post('/v1/jobs/onboard', {
   preHandler: x402Gate({ amount: 0.05, description: 'Foundry: onboard (first-time ASP guide)' }),
 }, async (req) => {
   const { draft } = req.body || {};
+  jobOnboardSchema.parse(req.body);
   return await jobOnboard({ draft });
 });
 
@@ -588,6 +721,7 @@ app.post('/v1/jobs/sla', {
   preHandler: x402Gate({ amount: 0.1, description: 'Foundry: SLA (guaranteed turnaround)' }),
 }, async (req) => {
   const { draft, max_ms } = req.body || {};
+  jobSLASchema.parse(req.body);
   return await jobSLA({ draft, max_ms });
 });
 
@@ -595,12 +729,14 @@ app.post('/v1/jobs/portfolio', {
   preHandler: x402Gate({ amount: 0.005, description: 'Foundry: portfolio (trust score for an agent)' }),
 }, async (req) => {
   const { agent_id } = req.body || {};
+  jobPortfolioSchema.parse(req.body);
   return await jobPortfolio({ agent_id });
 });
 
 // Subscription management (free, schedules the recurring jobs above)
 app.post('/v1/jobs/subscribe', async (req) => {
   const { owner_id, plan, callback_url, draft } = req.body || {};
+  jobSubscribeSchema.parse(req.body);
   return createSubscription({ owner_id, plan, callback_url, draft });
 });
 
@@ -624,6 +760,20 @@ app.get('/v1/a2a/health', async () => {
       FOUNDRY_A2A_DRY_RUN: config.a2a.dryRun,
     },
   };
+});
+
+// ─── Global error handler (prevents stack/info leaks on 500) ──────────
+app.setErrorHandler((error, request, reply) => {
+  const statusCode = error.statusCode || 500;
+  const message = statusCode >= 500 ? 'Internal server error' : error.message;
+  if (statusCode >= 500) {
+    app.log.error({ err: error.message, stack: error.stack?.slice(0, 200) }, 'unhandled error');
+  }
+  reply.code(statusCode).send({
+    error: statusCode >= 500 ? 'internal_error' : error.code || 'request_error',
+    message,
+    statusCode,
+  });
 });
 
 // ─── Start ─────────────────────────────────────────────────────────────

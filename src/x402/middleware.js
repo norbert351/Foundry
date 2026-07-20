@@ -19,7 +19,14 @@ import { config } from '../config.js';
 
 const SELLER_ADDRESS = config.xlayer.foundryWalletPk
   ? new ethers.Wallet(config.xlayer.foundryWalletPk).address
-  : '0x0000000000000000000000000000000000000000';
+  : null;
+let _sellerWallet = null;
+function getSellerWallet() {
+  if (_sellerWallet) return _sellerWallet;
+  if (!config.xlayer.foundryWalletPk) return null;
+  _sellerWallet = new ethers.Wallet(config.xlayer.foundryWalletPk);
+  return _sellerWallet;
+}
 
 function buildChallenge({ amount, resource, description }) {
   const payload = {
@@ -53,14 +60,19 @@ export function x402Gate({ amount, description, freeInDev = true }) {
     if (auth) {
       try {
         const decoded = JSON.parse(Buffer.from(auth, 'base64').toString('utf8'));
-        // Minimal verify: payload must reference our challenge and include a valid signature
-        // In production, decode the EIP-3009 / EIP-712 signature and settle on X Layer.
-        // For the hackathon demo, we accept any well-formed payload and mark paid.
-        if (decoded?.payload && decoded?.signature) {
-          req.x402 = { paid: true, payload: decoded, payer: decoded.payer || 'unknown' };
-          return;
+        if (!decoded?.payload || !decoded?.signature) {
+          throw new Error('malformed X-PAYMENT');
         }
-        throw new Error('malformed X-PAYMENT');
+        // Real EIP-191 verification via ethers.verifyMessage
+        const message = typeof decoded.payload === 'string'
+          ? decoded.payload
+          : JSON.stringify(decoded.payload);
+        const recovered = ethers.verifyMessage(message, decoded.signature);
+        if (recovered.toLowerCase() !== SELLER_ADDRESS.toLowerCase()) {
+          throw new Error('signer does not match seller address');
+        }
+        req.x402 = { paid: true, payload: decoded, payer: recovered };
+        return;
       } catch (e) {
         reply.code(402).header('content-type', 'application/json').send({
           error: 'invalid_payment',

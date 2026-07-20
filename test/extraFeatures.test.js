@@ -34,20 +34,21 @@ test('hashDraft is deterministic and 64 chars', () => {
   assert.notEqual(h1, hashDraft('world'));
 });
 
-test('previewStore + previewGet round-trip', () => {
-  const id = previewStore('# A\n\nB', 'secret1');
+test('previewStore + previewGet round-trip', async () => {
+  const id = await previewStore('# A\n\nB', 'secret1');
   assert.equal(typeof id, 'string');
   assert.ok(id.length > 8);
-  const e = previewGet(id);
+  const e = await previewGet(id);
   assert.ok(e);
   assert.equal(e.draft, '# A\n\nB');
 });
 
-test('previewGet returns null for unknown id', () => {
-  assert.equal(previewGet('nonexistent'), null);
+test('previewGet returns null for unknown id', async () => {
+  const result = await previewGet('nonexistent');
+  assert.equal(result, null);
 });
 
-test('listWebhooks returns array', () => {
-  const w = listWebhooks();
+test('listWebhooks returns array', async () => {
+  const w = await listWebhooks();
   assert.ok(Array.isArray(w));
 });
