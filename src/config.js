@@ -25,6 +25,14 @@ export const config = {
     apiKey: process.env.ANTHROPIC_API_KEY || '',
     model: process.env.LLM_MODEL || 'claude-sonnet-4-5',
   },
+  a2a: {
+    agentId: process.env.FOUNDRY_ASP_AGENT_ID || '',
+    pollMs: parseInt(process.env.FOUNDRY_A2A_POLL_MS || '20000', 10),
+    dataDir: process.env.FOUNDRY_A2A_DATA_DIR || '',
+    dryRun: process.env.FOUNDRY_A2A_DRY_RUN === '1',
+    hermesWebhookUrl: process.env.FOUNDRY_HERMES_WEBHOOK_URL || '',
+    filterAgentId: process.env.FOUNDRY_A2A_FILTER_AGENT_ID || '',
+  },
   scraper: {
     marketplaceUrl: process.env.OKX_MARKETPLACE_URL || 'https://www.okx.ai',
     scrapeCron: process.env.SCRAPE_INTERVAL_CRON || '*/15 * * * *',

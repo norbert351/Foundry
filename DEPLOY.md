@@ -135,3 +135,14 @@ foundry/
 5. **Register ASP** via onchainos or the Telegram identity-register flow
 6. **X post** with the demo + badge URL
 7. **Submit the Google form** before July 27 23:59 UTC
+
+## A2A worker (hire response)
+
+See `A2A.md`. Local 24/7:
+
+```bash
+systemctl --user enable --now foundry-asp foundry-a2a-worker
+```
+
+Render blueprint now includes `foundry-a2a-worker` background service.
+Two-phase: API (`foundry_job` payload) + Agent (Hermes queue/cron + okx-a2a).

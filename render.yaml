@@ -20,9 +20,53 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: FOUNDRY_ASP_AGENT_ID
+        sync: false
+      - key: FOUNDRY_HERMES_WEBHOOK_URL
+        sync: false
+      - key: FOUNDRY_HERMES_WEBHOOK_SECRET
+        sync: false
+      - key: FOUNDRY_A2A_FILTER_AGENT_ID
+        sync: false
       - key: X_BYPASS_PAYMENT
         value: '0'
       - key: LOG_LEVEL
         value: info
     healthCheckPath: /health
+    autoDeploy: true
+
+  # Always-on marketplace worker (API phase + Hermes agent handoff)
+  - type: worker
+    name: foundry-a2a-worker
+    runtime: node
+    plan: starter
+    buildCommand: pnpm install --prod=false
+    startCommand: node src/a2a/worker.js
+    envVars:
+      - key: NODE_VERSION
+        value: '20'
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: FOUNDRY_WALLET_PK
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: FOUNDRY_ASP_AGENT_ID
+        sync: false
+      - key: FOUNDRY_A2A_DATA_DIR
+        value: /var/data/foundry-a2a
+      - key: FOUNDRY_A2A_POLL_MS
+        value: '20000'
+      - key: FOUNDRY_A2A_DRY_RUN
+        value: '0'
+      - key: FOUNDRY_HERMES_WEBHOOK_URL
+        sync: false
+      - key: FOUNDRY_HERMES_WEBHOOK_SECRET
+        sync: false
+      - key: FOUNDRY_A2A_FILTER_AGENT_ID
+        sync: false
+      - key: LOG_LEVEL
+        value: info
     autoDeploy: true

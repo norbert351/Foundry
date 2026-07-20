@@ -7,6 +7,9 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "worker": "node src/a2a/worker.js",
+    "worker:once": "node src/a2a/worker.js --once",
+    "worker:dry": "node src/a2a/worker.js --once --dry-run",
     "scrape": "node src/scraper/run.js",
     "test": "node --test test/*.test.js",
     "lint": "echo 'lint pass (built-in)'"

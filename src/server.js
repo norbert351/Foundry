@@ -40,6 +40,21 @@ import {
   createSubscription, listSubscriptions, cancelSubscription,
   jobSLA, jobPortfolio,
 } from './services/jobs.js';
+import { createWorker } from './a2a/worker.js';
+
+// Optional in-process A2A worker (set FOUNDRY_A2A_EMBEDDED=1). Prefer the
+// dedicated `pnpm worker` / Render background worker for production.
+const a2aWorker = process.env.FOUNDRY_A2A_EMBEDDED === '1'
+  ? createWorker({
+      agentId: config.a2a.agentId,
+      pollMs: config.a2a.pollMs,
+      dataDir: config.a2a.dataDir || join(process.cwd(), '.data', 'a2a'),
+      dryRun: config.a2a.dryRun,
+      webhookUrl: config.a2a.hermesWebhookUrl,
+      filterAgentId: config.a2a.filterAgentId,
+      logger: console,
+    })
+  : null;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 let _logoCache = null;
@@ -86,6 +101,13 @@ app.get('/health', async () => {
     last_scrape: lastScrape,
     marketplace_size: listingCount,
     bypass_payment: config.bypassPayment,
+    a2a: {
+      embedded: !!a2aWorker,
+      agent_id: config.a2a.agentId || null,
+      dry_run: config.a2a.dryRun,
+      worker: a2aWorker ? a2aWorker.health() : { running: false, note: 'use dedicated worker process (pnpm worker)' },
+      phases: ['api', 'agent'],
+    },
     llm: {
       anthropic: !!config.llm.apiKey,
       hermes: !!process.env.HERMES_LLM_URL,
@@ -587,6 +609,23 @@ app.delete('/v1/jobs/subscribe/:id', async (req) => {
   return cancelSubscription(req.params.id);
 });
 
+// ─── A2A worker health (even when worker runs out-of-process) ───────────
+app.get('/v1/a2a/health', async () => {
+  if (a2aWorker) return { ok: true, mode: 'embedded', ...a2aWorker.health() };
+  return {
+    ok: true,
+    mode: 'external',
+    note: 'A2A worker is a separate process. Start with: pnpm worker',
+    agent_id: config.a2a.agentId || null,
+    phases: ['api', 'agent'],
+    env: {
+      FOUNDRY_ASP_AGENT_ID: !!config.a2a.agentId,
+      FOUNDRY_HERMES_WEBHOOK_URL: !!config.a2a.hermesWebhookUrl,
+      FOUNDRY_A2A_DRY_RUN: config.a2a.dryRun,
+    },
+  };
+});
+
 // ─── Start ─────────────────────────────────────────────────────────────
 const start = async () => {
   try {
@@ -594,6 +633,11 @@ const start = async () => {
     scrapeOnce().catch((e) => app.log.warn({ err: e.message }, 'initial scrape failed'));
     // Cron for ongoing freshness
     startScraperCron();
+    // Optional embedded worker
+    if (a2aWorker) {
+      a2aWorker.run().catch((e) => app.log.error({ err: e.message }, 'a2a worker crashed'));
+      app.log.info('Foundry A2A worker embedded (FOUNDRY_A2A_EMBEDDED=1)');
+    }
     // Listen
     await app.listen({ port: config.port, host: '0.0.0.0' });
     app.log.info(`Foundry ASP listening on :${config.port}`);
