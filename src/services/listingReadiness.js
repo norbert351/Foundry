@@ -11,7 +11,7 @@ import { validatePublicUrl } from './validateUrl.js';
 
 const TIMEOUT_MS = 12000;
 
-export async function listingReadiness({ endpoint, service_name }) {
+export async function listingReadiness({ endpoint, service_name, method = 'POST' }) {
   if (!endpoint) {
     return { verdict: 'MISSING_ENDPOINT', message: 'Provide your ASP endpoint URL to check.' };
   }
@@ -38,16 +38,19 @@ export async function listingReadiness({ endpoint, service_name }) {
     report.blockers.push(...x402.issues);
   }
 
-  // ── Check 2: Endpoint reachability (GET health check) ─────────────
+  // ── Check 2: Endpoint reachability (probe with same method) ─────────
   let reachable = false;
   let healthStatus = 0;
   let healthLatency = 0;
   let healthBody = null;
   const t0 = Date.now();
+  const probeMethod = method === 'GET' || method === 'HEAD' ? method : 'POST';
+  const probeBody = probeMethod === 'POST' ? JSON.stringify({ test: 'reachability' }) : undefined;
   try {
     const r = await fetch(endpoint, {
-      method: 'GET',
-      headers: { 'Accept': 'application/json', 'User-Agent': 'Foundry-Readiness/0.1' },
+      method: probeMethod,
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'User-Agent': 'Foundry-Readiness/0.1' },
+      body: probeBody,
       signal: AbortSignal.timeout(TIMEOUT_MS),
       redirect: 'follow',
     });
