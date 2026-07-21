@@ -31,6 +31,8 @@ import { getLlmStats } from './llm/client.js';
 import { instantShip } from './services/instantShip.js';
 import { getScoreboard, checkAgent } from './services/scoreboard.js';
 import { getCompetitors } from './services/competitors.js';
+import { x402Check } from './services/x402Check.js';
+import { listingReadiness } from './services/listingReadiness.js';
 import {
   batchLint, compareListings, applyRewrites, leaderboard,
   previewStore, previewGet, sandboxSubmit,
@@ -260,6 +262,8 @@ app.get('/health', async () => {
       'instant-ship': 'FREE (one-click listing generator)',
       'verified': 'FREE (public trust scoreboard)',
       'competitors': 'FREE (market competitor radar)',
+      'x402-check': 'FREE (x402 compliance validator)',
+      'listing-readiness': 'FREE (pre-listing readiness report)',
     },
   };
 });
@@ -773,6 +777,18 @@ app.get('/v1/verified/:agentId', async (req) => {
 app.get('/v1/competitors', async (req) => {
   const { category, limit, sortBy } = req.query || {};
   return await getCompetitors({ category, limit: parseInt(limit || '20', 10), sortBy });
+});
+
+// ─── x402 CHECKER (FREE) — validate an ASP endpoint's x402 compliance ───
+app.post('/v1/x402-check', async (req) => {
+  const { endpoint, method, body } = req.body || {};
+  return await x402Check({ endpoint, method: method || 'POST', body });
+});
+
+// ─── LISTING READINESS (FREE) — full pre-listing audit for ASP owners ──
+app.post('/v1/listing-readiness', async (req) => {
+  const { endpoint, service_name } = req.body || {};
+  return await listingReadiness({ endpoint, service_name });
 });
 
 // ─── A2A worker health (even when worker runs out-of-process) ───────────
