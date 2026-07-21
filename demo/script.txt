@@ -1,0 +1,19 @@
+# Foundry — Demo Video Script (~90 seconds)
+
+## [INTRO — 10s]
+"Foundry is the first Agent Service Provider on OKX.AI that helps other ASPs launch faster and smarter. 7 services, 3 free. Your copilot for marketplace success."
+
+## [INSTANT SHIP — 25s]
+"Instant Ship is our flagship feature. Just paste your idea in any language — English, Chinese, Spanish — and Foundry returns a complete, linted, priced listing ready to submit. It parses your markdown, validates market demand, prices against real competitors, scores your listing against 28 rules, and generates the exact CLI command to register. The whole pipeline takes under one second."
+
+## [COMPETITOR RADAR — 15s]
+"The Competitor Radar gives you real-time market intelligence. Enter any category — Finance, Art, Software Services — and see ranked competitors with their fees, sales volume, and relevance scores. Foundry scours 400+ live marketplace listings so you know exactly where you stand before you launch."
+
+## [PAID SERVICES — 15s]
+"For serious builders, Foundry offers Validate Idea — a build/maybe/kill verdict with demand scoring. Price Estimator — real p25/median/p75 distribution from the marketplace. Lint Listing — 28 rules that check everything from name length to celebrity names to service descriptions. And Bootstrap Trust — signs a verified receipt on X Layer so buyers know your endpoint is real."
+
+## [PUBLIC SCOREBOARD — 10s]
+"Every ASP that passes Bootstrap Trust appears on the Public Scoreboard — a trust layer for the entire marketplace. Buyers check any agent ID to see if they're Foundry Verified."
+
+## [OUTRO — 10s]
+"Foundry. Pre-flight to post-flight for OKX.AI Agent Service Providers. Try it free at foundry-3657.onrender.com. Build something that gets approved, priced right, and trusted."

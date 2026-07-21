@@ -33,7 +33,9 @@ function buildChallenge({ amount, resource, description }) {
     x402Version: 2,
     accepts: [{
       scheme: 'exact',
-      network: 'x-layer',
+      // CAIP-2 identifier required for interoperable x402 discovery.
+      // X Layer is EVM chain 196, therefore eip155:196.
+      network: `eip155:${config.xlayer.chainId}`,
       chainId: config.xlayer.chainId,
       asset: config.xlayer.usdtToken,
       amount: String(Math.round(amount * 1e6)), // USDT has 6 decimals
@@ -97,7 +99,7 @@ export function x402Gate({ amount, description, freeInDev = true }) {
         message: 'This endpoint requires payment via OKX Agent Payments Protocol (x402).',
         amount_usdt: amount,
         pay_to: SELLER_ADDRESS,
-        network: 'x-layer',
+        network: `eip155:${config.xlayer.chainId}`,
         chain_id: config.xlayer.chainId,
         asset: config.xlayer.usdtToken,
         challenge: 'PAYMENT-REQUIRED header contains full x402 v2 challenge payload',

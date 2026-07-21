@@ -42,8 +42,10 @@ test('returns 402 + PAYMENT-REQUIRED when no X-PAYMENT header', async () => {
   assert.ok(Array.isArray(decoded.accepts));
   assert.equal(decoded.accepts[0].scheme, 'exact');
   assert.ok(decoded.accepts[0].amount.length > 0);
-  assert.equal(decoded.accepts[0].network, 'x-layer');
+  assert.equal(decoded.accepts[0].network, 'eip155:196');
   assert.equal(decoded.accepts[0].chainId, 196);
+  assert.equal(decoded.accepts[0].asset, '0x779ded0c9e1022225f8e0630b35a9b54be713736');
+  assert.match(decoded.accepts[0].payTo, /^0x[0-9a-fA-F]{40}$/);
 });
 
 test('returns 402 with malformed X-PAYMENT', async () => {

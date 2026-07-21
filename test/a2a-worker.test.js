@@ -71,6 +71,7 @@ describe('A2A worker two-phase flow', () => {
       dryRun: false,
       once: true,
       pollMs: 10,
+      filterAgentId: '',   // test isolation — don't inherit from real env
       logger: { info() {}, error() {}, warn() {} },
       cli: {
         async activeTasks() {
@@ -104,6 +105,7 @@ describe('A2A worker two-phase flow', () => {
       dataDir: dir,
       store: new JobStore(storePath),
       once: true,
+      filterAgentId: '',   // test isolation
       logger: { info() {}, error() {} },
       cli: {
         async activeTasks() {

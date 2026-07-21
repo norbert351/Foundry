@@ -11,7 +11,7 @@ services:
       - key: PORT
         value: '8080'
       - key: PUBLIC_URL
-        value: https://foundry-asp.onrender.com
+        value: https://foundry-3657.onrender.com
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
