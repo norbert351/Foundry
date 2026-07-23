@@ -243,12 +243,12 @@ app.get('/health', async () => {
       'compare': '0.05 USDT',
       'apply-rewrites': '0.05 USDT',
       'health-check': '0.005 USDT',
-      'leaderboard': 'free',
-      'rules': 'free',
-      'schema': 'free',
-      'sandbox': 'free',
-      'preview': 'free (20/h)',
-      'webhooks': 'free',
+      'leaderboard': '0.001 USDT',
+      'rules': '0.001 USDT',
+      'schema': '0.001 USDT',
+      'sandbox': '0.001 USDT',
+      'preview': '0.005 USDT',
+      'webhooks': '0.001 USDT',
       // HIREABLE JOBS (Task Marketplace)
       'jobs.list-draft': '0.1 USDT',
       'jobs.audit': '0.01 USDT',
@@ -257,13 +257,13 @@ app.get('/health', async () => {
       'jobs.onboard': '0.05 USDT',
       'jobs.sla': '0.1 USDT',
       'jobs.portfolio': '0.005 USDT',
-      'jobs.subscribe': 'free',
+      'jobs.subscribe': '0.001 USDT',
       // FREE CORE FEATURES (no x402)
-      'instant-ship': 'FREE (one-click listing generator)',
-      'verified': 'FREE (public trust scoreboard)',
-      'competitors': 'FREE (market competitor radar)',
-      'x402-check': 'FREE (x402 compliance validator)',
-      'listing-readiness': 'FREE (pre-listing readiness report)',
+      'instant-ship': '0.001 USDT',
+      'verified': '0.001 USDT',
+      'competitors': '0.001 USDT',
+      'x402-check': '0.001 USDT',
+      'listing-readiness': '0.001 USDT',
     },
   };
 });
@@ -448,39 +448,56 @@ app.get('/v1/badge/:id.svg', async (req, reply) => {
 });
 
 // ─── 1. validate-idea ──────────────────────────────────────────────────
-app.post('/v1/validate-idea', {
+// x402-validate does GET (expect 402) → sign → POST (with X-PAYMENT) → result
+app.route({
+  method: ['GET', 'POST'],
+  url: '/v1/validate-idea',
   preHandler: x402Gate({ amount: 0.005, description: 'Foundry: validate-idea' }),
-}, async (req) => {
-  const { idea, category } = req.body || {};
-  validateIdeaSchema.parse(req.body);
-  return await validateIdea({ idea, category });
+  handler: async (req) => {
+    if (req.method === 'GET') return { ok: true, endpoint: 'validate-idea', fee: '0.005 USDT' };
+    const { idea, category } = req.body || {};
+    validateIdeaSchema.parse(req.body);
+    return await validateIdea({ idea, category });
+  },
 });
 
 // ─── 2. price-estimator ────────────────────────────────────────────────
-app.post('/v1/price-estimator', {
+app.route({
+  method: ['GET', 'POST'],
+  url: '/v1/price-estimator',
   preHandler: x402Gate({ amount: 0.005, description: 'Foundry: price-estimator' }),
-}, async (req) => {
-  const { category, idea, expected_volume_per_day } = req.body || {};
-  priceEstimatorSchema.parse(req.body);
-  return await priceEstimator({ category, idea, expected_volume_per_day });
+  handler: async (req) => {
+    if (req.method === 'GET') return { ok: true, endpoint: 'price-estimator', fee: '0.005 USDT' };
+    const { category, idea, expected_volume_per_day } = req.body || {};
+    priceEstimatorSchema.parse(req.body);
+    return await priceEstimator({ category, idea, expected_volume_per_day });
+  },
 });
 
 // ─── 3. lint-listing ───────────────────────────────────────────────────
-app.post('/v1/lint-listing', {
+app.route({
+  method: ['GET', 'POST'],
+  url: '/v1/lint-listing',
   preHandler: x402Gate({ amount: 0.05, description: 'Foundry: lint-listing' }),
-}, async (req) => {
-  const { listing, rewrite } = req.body || {};
-  lintListingSchema.parse(req.body);
-  return await lintListing({ listing, rewrite: rewrite !== false });
+  handler: async (req) => {
+    if (req.method === 'GET') return { ok: true, endpoint: 'lint-listing', fee: '0.05 USDT' };
+    const { listing, rewrite } = req.body || {};
+    lintListingSchema.parse(req.body);
+    return await lintListing({ listing, rewrite: rewrite !== false });
+  },
 });
 
 // ─── 4. bootstrap-trust ────────────────────────────────────────────────
-app.post('/v1/bootstrap-trust', {
+app.route({
+  method: ['GET', 'POST'],
+  url: '/v1/bootstrap-trust',
   preHandler: x402Gate({ amount: 0.001, description: 'Foundry: bootstrap-trust' }),
-}, async (req) => {
-  const { endpoint, service_name, caller_wallet } = req.body || {};
-  bootstrapTrustSchema.parse(req.body);
-  return await bootstrapTrust({ endpoint, service_name, caller_wallet });
+  handler: async (req) => {
+    if (req.method === 'GET') return { ok: true, endpoint: 'bootstrap-trust', fee: '0.001 USDT' };
+    const { endpoint, service_name, caller_wallet } = req.body || {};
+    bootstrapTrustSchema.parse(req.body);
+    return await bootstrapTrust({ endpoint, service_name, caller_wallet });
+  },
 });
 
 // ─── Frontend adapter routes (/api/*) — match the Google AI Studio contract ─
@@ -756,10 +773,16 @@ app.delete('/v1/jobs/subscribe/:id', async (req) => {
   return cancelSubscription(req.params.id);
 });
 
-// ─── INSTANT SHIP (FREE) — one draft → ready listing + CLI command ────
-app.post('/v1/instant-ship', async (req) => {
-  const { draft, language, endpoint, fee } = req.body || {};
-  return await instantShip({ draft, language, endpoint, fee });
+// ─── INSTANT SHIP (0.001 USDT, x402) — one draft → ready listing + CLI ──
+app.route({
+  method: ['GET', 'POST'],
+  url: '/v1/instant-ship',
+  preHandler: x402Gate({ amount: 0.001, description: 'Foundry: instant-ship' }),
+  handler: async (req) => {
+    if (req.method === 'GET') return { ok: true, endpoint: 'instant-ship', fee: '0.001 USDT' };
+    const { draft, language, endpoint, fee } = req.body || {};
+    return await instantShip({ draft, language, endpoint, fee });
+  },
 });
 
 // ─── PUBLIC SCOREBOARD (FREE) — Foundry Verified leaderboard ──────────
