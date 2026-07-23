@@ -1,17 +1,17 @@
 {
   "name": "Foundry ASP",
-  "description": "Pre-flight to post-flight for OKX.AI Agent Service Providers. Validates ideas, prices services, lints listings, bootstraps trust, and generates instant-ready listings from any language. Plus a public trust scoreboard and competitor radar.",
+  "description": "Pre-flight to post-flight for OKX.AI Agent Service Providers. Validates ideas, prices services, lints listings, bootstraps trust, and generates instant-ready listings from any language.",
   "services": [
     {
       "name": "Validate Idea",
-      "description": "① Checks if your ASP idea is worth building by scoring demand, mapping competitors, and giving a build/maybe/kill verdict.\n② User must provide: 1. idea (short text describing your service) 2. optional category (FINANCE, SOFTWARE_SERVICES, LIFESTYLE, ART_CREATION, EDUCATION, PRODUCTIVITY, SOCIAL).",
+      "description": "① Checks if your ASP idea is worth building by scoring demand, mapping competitors, and giving a build/maybe/kill verdict.\n② User must provide: 1. idea (short text describing your service) 2. optional category.",
       "type": "A2MCP",
       "fee": "0.005",
       "endpoint": "https://foundry-3657.onrender.com/v1/validate-idea"
     },
     {
       "name": "Price Estimator",
-      "description": "① Returns real marketplace pricing distribution (p25/median/p75) for a category, plus a recommended fee based on complexity and expected volume.\n② User must provide: 1. optional category 2. optional idea (for LLM complexity judgment) 3. optional expected_volume_per_day (number).",
+      "description": "① Returns real marketplace pricing distribution (p25/median/p75) for a category, plus a recommended fee based on complexity and expected volume.\n② User must provide: 1. optional category 2. optional idea 3. optional expected_volume_per_day.",
       "type": "A2MCP",
       "fee": "0.005",
       "endpoint": "https://foundry-3657.onrender.com/v1/price-estimator"
@@ -24,32 +24,18 @@
       "endpoint": "https://foundry-3657.onrender.com/v1/lint-listing"
     },
     {
-      "name": "Bootstrap Trust",
-      "description": "① Calls your live endpoint, measures latency, checks JSON schema, and signs a Foundry Verified receipt on X Layer embeddable as a badge.\n② User must provide: 1. endpoint (https URL of your ASP) 2. optional service_name 3. optional caller_wallet.",
+      "name": "Check Endpoint + Badge",
+      "description": "① Calls your live endpoint, measures latency, checks JSON schema, validates x402 compliance, and signs a Foundry Verified receipt on X Layer as an embeddable badge.\n② User must provide: 1. endpoint (https URL of your ASP) 2. optional service_name 3. optional caller_wallet.",
       "type": "A2MCP",
       "fee": "0.001",
       "endpoint": "https://foundry-3657.onrender.com/v1/bootstrap-trust"
     },
     {
       "name": "Instant Ship",
-      "description": "① One draft → ready-to-submit listing: parses markdown, validates demand, prices it, lints to 100, auto-fixes issues, and returns the exact CLI command to register. Supports any language.\n② User must provide: 1. draft (plain text or markdown describing your ASP idea) 2. optional language (auto-detects if omitted) 3. optional endpoint for trust badge. FREE.",
+      "description": "① One draft → ready-to-submit listing: parses markdown, validates demand, prices it, lints to 100, auto-fixes issues, and returns the exact CLI command to register.\n② User must provide: 1. draft (plain text or markdown).",
       "type": "A2MCP",
-      "fee": "0",
+      "fee": "0.001",
       "endpoint": "https://foundry-3657.onrender.com/v1/instant-ship"
-    },
-    {
-      "name": "Public Scoreboard",
-      "description": "① See which ASPs are Foundry Verified — checks live endpoint health, JSON schema validity, and lists them on a public leaderboard. Check any agent by ID.\n② No input needed for leaderboard. For agent check: /v1/verified/:agentId. FREE.",
-      "type": "A2MCP",
-      "fee": "0",
-      "endpoint": "https://foundry-3657.onrender.com/v1/verified"
-    },
-    {
-      "name": "Competitor Radar",
-      "description": "① Enter any category and get ranked competitors with fee, sales volume, relevance score, and market tips — helps you find your pricing and positioning.\n② User must provide: 1. category (e.g. FINANCE, ART_CREATION). FREE.",
-      "type": "A2MCP",
-      "fee": "0",
-      "endpoint": "https://foundry-3657.onrender.com/v1/competitors"
     }
   ]
 }
