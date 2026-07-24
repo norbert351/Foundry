@@ -865,6 +865,13 @@ app.route({
       const body = req.body || {};
       // Accept flexible field names: prompt, task, or draft
       const draft = body.draft || body.prompt || body.task || body.content || body.text || '';
+      if (!draft || typeof draft !== 'string' || draft.trim().length < 5) {
+        reply.code(400).send({
+          error: 'bad_request',
+          message: 'draft (or prompt/task) must be at least 5 characters describing your ASP idea',
+        });
+        return reply;
+      }
       const language = body.language || '';
       const endpoint = body.endpoint || '';
       const fee = body.fee || '';
