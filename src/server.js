@@ -55,44 +55,46 @@ const listingObjectSchema = z.object({
   description: z.string(),
   category: z.string(),
   services: z.array(z.any()),
-}).strict();
+});
 
 const validateIdeaSchema = z.object({
   idea: z.string().min(5),
   category: z.string().optional(),
-}).strict();
+});
 
 const priceEstimatorSchema = z.object({
   category: z.string().optional(),
   idea: z.string().optional(),
   expected_volume_per_day: z.number().optional(),
-}).strict();
+});
 
 const lintListingSchema = z.object({
   listing: listingObjectSchema,
   rewrite: z.boolean().optional(),
-}).strict();
+});
 
 const bootstrapTrustSchema = z.object({
   endpoint: z.string().url().startsWith('https://'),
   service_name: z.string().optional(),
+  serviceName: z.string().optional(),
   caller_wallet: z.string().optional(),
-}).strict();
+  callerWallet: z.string().optional(),
+});
 
 const batchLintSchema = z.object({
   listings: z.array(z.any()).min(1).max(20),
   sortBy: z.string().optional(),
-}).strict();
+});
 
 const compareSchema = z.object({
   listings: z.array(z.any()).min(2).max(5),
   criterion: z.string().optional(),
-}).strict();
+});
 
 const applyRewritesSchema = z.object({
   listing: listingObjectSchema,
   auto_apply: z.boolean().optional(),
-}).strict();
+});
 
 const previewSchema = z.object({
   draft: z.string(),
@@ -524,11 +526,21 @@ app.route({
   method: ['GET', 'POST'],
   url: '/v1/bootstrap-trust',
   preHandler: x402Gate({ amount: 0.001, description: 'Foundry: bootstrap-trust' }),
-  handler: async (req) => {
+  handler: async (req, reply) => {
     if (req.method === 'GET') return { ok: true, endpoint: 'bootstrap-trust', fee: '0.001 USDT' };
-    const { endpoint, service_name, caller_wallet } = req.body || {};
-    bootstrapTrustSchema.parse(req.body);
-    return await bootstrapTrust({ endpoint, service_name, caller_wallet });
+    try {
+      const body = req.body || {};
+      // Accept both camelCase and snake_case
+      const endpoint = body.endpoint || '';
+      const service_name = body.service_name || body.serviceName || '';
+      const caller_wallet = body.caller_wallet || body.callerWallet || '';
+      bootstrapTrustSchema.parse({ endpoint, service_name, serviceName: service_name, caller_wallet, callerWallet: caller_wallet });
+      return await bootstrapTrust({ endpoint, service_name, caller_wallet });
+    } catch (err) {
+      req.log.error({ err: err.message }, 'bootstrap-trust failed');
+      reply.code(500).send({ error: 'internal_error', message: err.message });
+      return reply;
+    }
   },
 });
 
