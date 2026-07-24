@@ -487,11 +487,22 @@ app.route({
   method: ['GET', 'POST'],
   url: '/v1/validate-idea',
   preHandler: x402Gate({ amount: 0.005, description: 'Foundry: validate-idea' }),
-  handler: async (req) => {
+  handler: async (req, reply) => {
     if (req.method === 'GET') return { ok: true, endpoint: 'validate-idea', fee: '0.005 USDT' };
-    const { idea, category } = req.body || {};
-    validateIdeaSchema.parse(req.body);
-    return await validateIdea({ idea, category });
+    try {
+      const body = req.body || {};
+      const idea = body.idea || body.prompt || body.task || body.text || '';
+      const category = body.category || '';
+      if (!idea || idea.length < 5) {
+        reply.code(400).send({ error: 'bad_request', message: 'idea must be at least 5 characters' });
+        return reply;
+      }
+      return await validateIdea({ idea, category });
+    } catch (err) {
+      req.log.error({ err: err.message, body: JSON.stringify(req.body).slice(0, 200) }, 'validate-idea failed');
+      reply.code(500).send({ error: 'internal_error', message: err.message });
+      return reply;
+    }
   },
 });
 
@@ -500,11 +511,20 @@ app.route({
   method: ['GET', 'POST'],
   url: '/v1/price-estimator',
   preHandler: x402Gate({ amount: 0.005, description: 'Foundry: price-estimator' }),
-  handler: async (req) => {
+  handler: async (req, reply) => {
     if (req.method === 'GET') return { ok: true, endpoint: 'price-estimator', fee: '0.005 USDT' };
-    const { category, idea, expected_volume_per_day } = req.body || {};
-    priceEstimatorSchema.parse(req.body);
-    return await priceEstimator({ category, idea, expected_volume_per_day });
+    try {
+      const body = req.body || {};
+      return await priceEstimator({
+        category: body.category || '',
+        idea: body.idea || body.prompt || '',
+        expected_volume_per_day: body.expected_volume_per_day || body.expectedVolume || body.volume || undefined,
+      });
+    } catch (err) {
+      req.log.error({ err: err.message }, 'price-estimator failed');
+      reply.code(500).send({ error: 'internal_error', message: err.message });
+      return reply;
+    }
   },
 });
 
@@ -513,11 +533,22 @@ app.route({
   method: ['GET', 'POST'],
   url: '/v1/lint-listing',
   preHandler: x402Gate({ amount: 0.05, description: 'Foundry: lint-listing' }),
-  handler: async (req) => {
+  handler: async (req, reply) => {
     if (req.method === 'GET') return { ok: true, endpoint: 'lint-listing', fee: '0.05 USDT' };
-    const { listing, rewrite } = req.body || {};
-    lintListingSchema.parse(req.body);
-    return await lintListing({ listing, rewrite: rewrite !== false });
+    try {
+      const body = req.body || {};
+      const listing = body.listing || {};
+      const rewrite = body.rewrite !== false;
+      if (!listing.name || !listing.description) {
+        reply.code(400).send({ error: 'bad_request', message: 'listing must have name and description' });
+        return reply;
+      }
+      return await lintListing({ listing, rewrite });
+    } catch (err) {
+      req.log.error({ err: err.message }, 'lint-listing failed');
+      reply.code(500).send({ error: 'internal_error', message: err.message });
+      return reply;
+    }
   },
 });
 
