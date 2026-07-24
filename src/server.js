@@ -17,6 +17,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { config } from './config.js';
+import { ethers } from 'ethers';
 import { x402Gate } from './x402/middleware.js';
 import { validateIdea } from './services/validateIdea.js';
 import { priceEstimator } from './services/priceEstimator.js';
@@ -199,6 +200,12 @@ await app.register(cors, { origin: '*' });
 app.get('/health', async () => {
   let lastScrape = null;
   let listingCount = 0;
+  let dbOk = false;
+  let llmOk = false;
+  let x402Ok = false;
+  let deps = [];
+
+  // Check Supabase/DB
   try {
     const { data } = await supabase
       .from('latest_marketplace')
@@ -211,61 +218,86 @@ app.get('/health', async () => {
       .limit(1)
       .single();
     lastScrape = latest?.scraped_at || null;
-  } catch { /* ignore */ }
+    dbOk = true;
+    deps.push({ name: 'supabase', ok: true });
+  } catch {
+    deps.push({ name: 'supabase', ok: false, error: 'unreachable' });
+  }
+
+  // Check LLM
+  const llmStats = getLlmStats();
+  llmOk = !!config.llm.apiKey || !!process.env.HERMES_LLM_URL;
+  deps.push({ name: 'llm', ok: llmOk, anthropic: !!config.llm.apiKey, hermes: !!process.env.HERMES_LLM_URL, stats: llmStats });
+
+  // Check x402/ethers
+  x402Ok = !!config.xlayer.foundryWalletPk;
+  deps.push({ name: 'x402', ok: x402Ok, wallet: x402Ok ? 'configured' : 'missing' });
+
   return {
-    ok: true,
+    ok: dbOk && x402Ok,
+    status: dbOk && x402Ok ? 'healthy' : 'degraded',
     service: 'foundry-asp',
     version: '0.1.0',
     chain: 'x-layer',
     chain_id: config.xlayer.chainId,
     pay_to: config.xlayer.foundryWalletPk ? '(configured)' : '(unconfigured)',
-    last_scrape: lastScrape,
-    marketplace_size: listingCount,
     bypass_payment: config.bypassPayment,
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    dependencies: deps,
     a2a: {
       embedded: !!a2aWorker,
       agent_id: config.a2a.agentId || null,
-      dry_run: config.a2a.dryRun,
-      worker: a2aWorker ? a2aWorker.health() : { running: false, note: 'use dedicated worker process (pnpm worker)' },
-      phases: ['api', 'agent'],
+      note: config.a2a.agentId && !a2aWorker
+        ? `Agent ${config.a2a.agentId} configured, worker runs externally via pnpm worker`
+        : !config.a2a.agentId
+        ? 'Set FOUNDRY_ASP_AGENT_ID to enable A2A task processing'
+        : 'embedded worker running',
     },
-    llm: {
-      anthropic: !!config.llm.apiKey,
-      hermes: !!process.env.HERMES_LLM_URL,
-      stats: getLlmStats(),
+    x402: {
+      network: `eip155:${config.xlayer.chainId}`,
+      chain_id: config.xlayer.chainId,
+      asset: config.xlayer.usdtToken,
+      pay_to: config.xlayer.foundryWalletPk
+        ? new ethers.Wallet(config.xlayer.foundryWalletPk).address
+        : null,
     },
-    endpoints: {
-      'validate-idea': '0.005 USDT',
-      'price-estimator': '0.005 USDT',
-      'lint-listing': '0.05 USDT',
-      'bootstrap-trust': '0.001 USDT',
-      'batch-lint': '0.1 USDT',
-      'compare': '0.05 USDT',
-      'apply-rewrites': '0.05 USDT',
-      'health-check': '0.005 USDT',
-      'leaderboard': '0.001 USDT',
-      'rules': '0.001 USDT',
-      'schema': '0.001 USDT',
-      'sandbox': '0.001 USDT',
-      'preview': '0.005 USDT',
-      'webhooks': '0.001 USDT',
-      // HIREABLE JOBS (Task Marketplace)
-      'jobs.list-draft': '0.1 USDT',
-      'jobs.audit': '0.01 USDT',
-      'jobs.marketplace-watch': '0.02 USDT',
-      'jobs.portfolio-review': '0.05 USDT',
-      'jobs.onboard': '0.05 USDT',
-      'jobs.sla': '0.1 USDT',
-      'jobs.portfolio': '0.005 USDT',
-      'jobs.subscribe': '0.001 USDT',
-      // FREE CORE FEATURES (no x402)
-      'instant-ship': '0.001 USDT',
-      'verified': '0.001 USDT',
-      'competitors': '0.001 USDT',
-      'x402-check': '0.001 USDT',
-      'listing-readiness': '0.001 USDT',
-    },
+    endpoints: 27,
+    last_scrape: lastScrape,
+    marketplace_size: listingCount,
   };
+});
+
+// ─── Deep dependency test (for Render health check) ─────────────
+app.get('/v1/__health', async (req, reply) => {
+  const errors = [];
+
+  // 1. Self x402 test
+  try {
+    const r = await fetch(`http://localhost:${config.port}/v1/validate-idea`, {
+      method: 'GET',
+      signal: AbortSignal.timeout(5000),
+    });
+    if (r.status !== 402) errors.push('x402: expected 402, got ' + r.status);
+  } catch (e) {
+    errors.push('x402: ' + e.message);
+  }
+
+  // 2. LLM check
+  if (!config.llm.apiKey && !process.env.HERMES_LLM_URL) {
+    errors.push('llm: no API key configured');
+  }
+
+  // 3. Wallet check
+  if (!config.xlayer.foundryWalletPk) {
+    errors.push('wallet: FOUNDRY_WALLET_PK not set');
+  }
+
+  if (errors.length > 0) {
+    reply.code(503).send({ ok: false, status: 'degraded', errors });
+  } else {
+    return { ok: true, status: 'healthy' };
+  }
 });
 
 // ─── Logo (free — public asset) ────────────────────────────────────────

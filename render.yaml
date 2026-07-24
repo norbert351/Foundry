@@ -21,7 +21,7 @@ services:
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: FOUNDRY_ASP_AGENT_ID
-        sync: false
+        value: 6956
       - key: FOUNDRY_HERMES_WEBHOOK_URL
         sync: false
       - key: FOUNDRY_HERMES_WEBHOOK_SECRET
