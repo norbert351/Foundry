@@ -493,9 +493,15 @@ app.route({
       const body = req.body || {};
       const idea = body.idea || body.prompt || body.task || body.text || '';
       const category = body.category || '';
+      // If no idea provided (CLI payment pay --payment-id replay without body),
+      // return a helpful message instead of rejecting
       if (!idea || idea.length < 5) {
-        reply.code(400).send({ error: 'bad_request', message: 'idea must be at least 5 characters' });
-        return reply;
+        return {
+          paid: true,
+          message: 'Payment received. Re-send your request with the body including an "idea" field (min 5 chars) to get the validation result.',
+          service: 'validate-idea',
+          amount_paid: '0.005 USDT',
+        };
       }
       return await validateIdea({ idea, category });
     } catch (err) {
