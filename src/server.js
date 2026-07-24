@@ -778,10 +778,24 @@ app.route({
   method: ['GET', 'POST'],
   url: '/v1/instant-ship',
   preHandler: x402Gate({ amount: 0.001, description: 'Foundry: instant-ship' }),
-  handler: async (req) => {
+  handler: async (req, reply) => {
     if (req.method === 'GET') return { ok: true, endpoint: 'instant-ship', fee: '0.001 USDT' };
-    const { draft, language, endpoint, fee } = req.body || {};
-    return await instantShip({ draft, language, endpoint, fee });
+    try {
+      const body = req.body || {};
+      // Accept flexible field names: prompt, task, or draft
+      const draft = body.draft || body.prompt || body.task || body.content || body.text || '';
+      const language = body.language || '';
+      const endpoint = body.endpoint || '';
+      const fee = body.fee || '';
+      return await instantShip({ draft, language, endpoint, fee });
+    } catch (err) {
+      req.log.error({ err: err.message, stack: err.stack?.slice(0, 200) }, 'instant-ship failed');
+      reply.code(500).send({
+        error: 'internal_error',
+        message: 'Service handler error: ' + err.message,
+      });
+      return reply;
+    }
   },
 });
 
